@@ -53,6 +53,10 @@ func NewDecompressS4BP128D4(data []byte) *decompressS4BP128D4 {
 	return d
 }
 
+func (d *decompressS4BP128D4) Err() error {
+	return d.e
+}
+
 func (d *decompressS4BP128D4) Next() bool {
 	v, l := VariableByte32(d.data)
 	if v == 0 && l <= 0 {
@@ -76,11 +80,66 @@ func (d *decompressS4BP128D4) At() uint32 {
 }
 
 func DecompressUnder128(data []byte) []uint32 {
+	c := &CompositeDecoder{
+		codec1: &nullDecoder{},
+		codec2: NewDecompressS4BP128D4(data),
+	}
 	out := make([]uint32, 0)
 
-	d := NewDecompressS4BP128D4(data)
-	for d.Next() {
-		out = append(out, d.At())
+	for c.Next() {
+		out = append(out, c.At())
 	}
 	return out
+}
+
+type Iterator interface {
+	Next() bool
+	At() uint32
+	Err() error
+}
+
+type nullDecoder struct {
+}
+
+func (n *nullDecoder) At() uint32 {
+	return 0
+}
+
+func (n *nullDecoder) Next() bool {
+	return false
+}
+
+func (n *nullDecoder) Err() error {
+	return nil
+}
+
+type CompositeDecoder struct {
+	codec1, codec2 Iterator
+	useCodec2      bool
+}
+
+func (d *CompositeDecoder) Next() bool {
+	if d.useCodec2 {
+		return d.codec2.Next()
+	}
+	n := d.codec1.Next()
+	if !n {
+		d.useCodec2 = true
+		return d.Next()
+	}
+	return n
+}
+
+func (d *CompositeDecoder) At() uint32 {
+	if d.useCodec2 {
+		return d.codec2.At()
+	}
+	return d.codec1.At()
+}
+
+func (d *CompositeDecoder) Err() error {
+	if d.useCodec2 {
+		return d.codec2.Err()
+	}
+	return d.codec1.Err()
 }
