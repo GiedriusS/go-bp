@@ -2,7 +2,9 @@ package bp
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
+	"io"
 )
 
 const maxVariableByteLen32 = 5
@@ -80,8 +82,9 @@ func (d *decompressS4BP128D4) At() uint32 {
 }
 
 func DecompressUnder128(data []byte) []uint32 {
+	s4decoder := NewS4BP128D4Decoder(data)
 	c := &CompositeDecoder{
-		codec1: &nullDecoder{},
+		codec1: s4decoder,
 		codec2: NewDecompressS4BP128D4(data),
 	}
 	out := make([]uint32, 0)
@@ -142,4 +145,105 @@ func (d *CompositeDecoder) Err() error {
 		return d.codec2.Err()
 	}
 	return d.codec1.Err()
+}
+
+type s4BP128D4Decoder struct {
+	data []byte
+}
+
+type bitsReader struct {
+	data     []byte
+	usedBits uint8
+}
+
+func bitsToMask(bits uint8) uint8 {
+	return (1 << bits) - 1
+}
+
+func (b *bitsReader) ReadBits(n uint8) (uint32, error) {
+	if len(b.data) == 0 {
+		return 0, io.ErrUnexpectedEOF
+	}
+
+	var ret uint32
+	if n+b.usedBits > 8 {
+		// Switch to the other byte. Use the last bytes.
+		ret = uint32(b.data[0] & bitsToMask(n))
+		b.usedBits = b.usedBits + n - 8
+		b.data = b.data[1:]
+		if len(b.data) == 0 {
+			return 0, io.ErrUnexpectedEOF
+		}
+		ret = (ret << uint32(b.usedBits)) | uint32(b.data[0]&bitsToMask(b.usedBits))
+		b.data[0] = b.data[0] >> b.usedBits
+	} else {
+		ret = uint32(b.data[0] & bitsToMask(n))
+		b.usedBits += n
+		b.data[0] = b.data[0] >> n
+	}
+
+	return ret, nil
+}
+
+func NewS4BP128D4Decoder(data []byte) *s4BP128D4Decoder {
+	// Length refers to number of items coded with the 1st codec.
+	length := binary.LittleEndian.Uint32(data[:])
+
+	fmt.Println("number of elements coded with 1st codec", length)
+	data = data[4:]
+
+	blockSizes := make([]uint8, 16)
+	// Leftovers.
+	for i := 0; i < 4; i++ {
+		bs := uint8(data[0])
+		blockSizes[3+4*i] = bs
+		bs = uint8(data[1])
+		blockSizes[2+4*i] = bs
+		bs = uint8(data[2])
+		blockSizes[1+4*i] = bs
+
+		bs = uint8(data[3])
+		blockSizes[0+4*i] = bs
+
+		// if bs == 0 then there is nothing there.
+		data = data[4:]
+	}
+	fmt.Println(blockSizes)
+
+	// Now we have bit packed stuff.
+	fmt.Println("We are left with", len(data))
+
+	// Dispatch through an array.
+
+	// Create mask.
+	// Read 3 bits at a time.
+	// AND + store.
+	// Shift, AND, store.
+
+	// 1 2 3 4    5 6 7 8
+	//            4 4 4 4
+
+	// There should be 32 items (4 bytes each -> uint32).
+	// I expect to only see 4 :/
+
+	// Load 4x uint32 LE.
+	// 48 bytes = 12 uint32. (12*4)
+	//var oldRegs [4]uint32
+	unpacked := unpack3(data)
+	fmt.Println("Unpacked = ", unpacked, len(unpacked))
+
+	// 16 bytes of bit widths.
+	return &s4BP128D4Decoder{data: data}
+}
+
+func (d *s4BP128D4Decoder) Next() bool {
+	return false
+}
+
+func (d *s4BP128D4Decoder) At() uint32 {
+	return 0
+}
+
+func (d *s4BP128D4Decoder) Err() error {
+	return nil
 }

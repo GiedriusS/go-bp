@@ -40,6 +40,14 @@ func compress32WithVanillaImpl(t testing.TB, data []uint32) []byte {
 }
 
 func TestUnder128Decompression(t *testing.T) {
-	o := compress32WithVanillaImpl(t, []uint32{1, 2, 100, 10000})
-	require.Equal(t, []uint32{1, 2, 100, 10000}, DecompressUnder128(o))
+	in := []uint32{}
+
+	fmt.Println("mask", bitsToMask(3))
+
+	for i := 1; i < 129; i++ {
+		in = append(in, uint32(i))
+	}
+	o := compress32WithVanillaImpl(t, in)
+	t.Log(o)
+	require.Equal(t, in, DecompressUnder128(o))
 }
