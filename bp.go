@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"io"
 )
 
 const maxVariableByteLen32 = 5
@@ -151,40 +150,6 @@ type s4BP128D4Decoder struct {
 	data []byte
 }
 
-type bitsReader struct {
-	data     []byte
-	usedBits uint8
-}
-
-func bitsToMask(bits uint8) uint8 {
-	return (1 << bits) - 1
-}
-
-func (b *bitsReader) ReadBits(n uint8) (uint32, error) {
-	if len(b.data) == 0 {
-		return 0, io.ErrUnexpectedEOF
-	}
-
-	var ret uint32
-	if n+b.usedBits > 8 {
-		// Switch to the other byte. Use the last bytes.
-		ret = uint32(b.data[0] & bitsToMask(n))
-		b.usedBits = b.usedBits + n - 8
-		b.data = b.data[1:]
-		if len(b.data) == 0 {
-			return 0, io.ErrUnexpectedEOF
-		}
-		ret = (ret << uint32(b.usedBits)) | uint32(b.data[0]&bitsToMask(b.usedBits))
-		b.data[0] = b.data[0] >> b.usedBits
-	} else {
-		ret = uint32(b.data[0] & bitsToMask(n))
-		b.usedBits += n
-		b.data[0] = b.data[0] >> n
-	}
-
-	return ret, nil
-}
-
 func NewS4BP128D4Decoder(data []byte) *s4BP128D4Decoder {
 	// Length refers to number of items coded with the 1st codec.
 	length := binary.LittleEndian.Uint32(data[:])
@@ -229,8 +194,12 @@ func NewS4BP128D4Decoder(data []byte) *s4BP128D4Decoder {
 	// Load 4x uint32 LE.
 	// 48 bytes = 12 uint32. (12*4)
 	//var oldRegs [4]uint32
-	unpacked := unpack3(data)
+	data, unpacked := unpack10(data)
 	fmt.Println("Unpacked = ", unpacked, len(unpacked))
+
+	fmt.Println("data left", data, len(data))
+
+	fmt.Println(VariableByte32(data))
 
 	// 16 bytes of bit widths.
 	return &s4BP128D4Decoder{data: data}
