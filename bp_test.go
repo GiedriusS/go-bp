@@ -44,7 +44,7 @@ func TestUnder128Decompression(t *testing.T) {
 
 	fmt.Println("mask", bitsToMask(3))
 
-	for i := 1000; i <= 1000+128; i++ {
+	for i := 1; i < 128; i++ {
 		in = append(in, uint32(i))
 	}
 	o := compress32WithVanillaImpl(t, in)

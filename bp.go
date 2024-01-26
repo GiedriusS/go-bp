@@ -194,7 +194,7 @@ func NewS4BP128D4Decoder(data []byte) *s4BP128D4Decoder {
 	// Load 4x uint32 LE.
 	// 48 bytes = 12 uint32. (12*4)
 	//var oldRegs [4]uint32
-	data, unpacked := unpack10(data)
+	data, unpacked := unpackergen3(data)
 	fmt.Println("Unpacked = ", unpacked, len(unpacked))
 
 	fmt.Println("data left", data, len(data))
