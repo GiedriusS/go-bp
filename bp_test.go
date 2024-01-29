@@ -42,9 +42,8 @@ func compress32WithVanillaImpl(t testing.TB, data []uint32) []byte {
 func TestUnder128Decompression(t *testing.T) {
 	in := []uint32{}
 
-	fmt.Println("mask", bitsToMask(3))
-
-	for i := 1; i < 128; i++ {
+	const start = 1500000000
+	for i := start; i < start+129; i++ {
 		in = append(in, uint32(i))
 	}
 	o := compress32WithVanillaImpl(t, in)
